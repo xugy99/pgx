@@ -26,6 +26,7 @@ import (
 type AfterConnectFunc func(ctx context.Context, pgconn *PgConn) error
 type ValidateConnectFunc func(ctx context.Context, pgconn *PgConn) error
 type GetSSLPasswordFunc func(ctx context.Context) string
+type GetOAuthBearerTokenFunc func(ctx context.Context) string
 
 // Config is the settings used to establish a connection to a PostgreSQL server. It must be created by [ParseConfig]. A
 // manually initialized Config will cause ConnectConfig to panic.
@@ -74,6 +75,9 @@ type Config struct {
 	OnPgError PgErrorHandler
 
 	createdByParseConfig bool // Used to enforce created by ParseConfig rule.
+
+	// The preconfigured OAuth2 Bearer Token for authentication
+	OAuthBearerToken string
 }
 
 // ParseConfigOptions contains options that control how a config is built such as GetSSLPassword.
@@ -81,6 +85,9 @@ type ParseConfigOptions struct {
 	// GetSSLPassword gets the password to decrypt a SSL client certificate. This is analogous to the libpq function
 	// PQsetSSLKeyPassHook_OpenSSL.
 	GetSSLPassword GetSSLPasswordFunc
+
+	// The callback function to get the OAuth bear token
+	GetOAuthBearerToken GetOAuthBearerTokenFunc
 }
 
 // Copy returns a deep copy of the config that is safe to use and modify.
@@ -420,6 +427,11 @@ func ParseConfigWithOptions(connString string, options ParseConfigOptions) (*Con
 		// do nothing
 	default:
 		return nil, &ParseConfigError{ConnString: connString, msg: fmt.Sprintf("unknown target_session_attrs value: %v", tsa)}
+	}
+
+	// xugy poc
+	if options.GetOAuthBearerToken != nil {
+		config.OAuthBearerToken = options.GetOAuthBearerToken(context.Background())
 	}
 
 	return config, nil

@@ -22,6 +22,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn/ctxwatch"
 	"github.com/jackc/pgx/v5/pgconn/internal/bgreader"
 	"github.com/jackc/pgx/v5/pgproto3"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -411,6 +412,17 @@ func connectOne(ctx context.Context, config *Config, connectConfig *connectOneCo
 				return nil, newPerDialConnectError("failed to write password message", err)
 			}
 		case *pgproto3.AuthenticationSASL:
+			/// If the mechanism is OAUTHBEARER
+			if slices.Contains(msg.AuthMechanisms, "OAUTHBEARER") {
+				err = pgConn.oauthAuth()
+				if err != nil {
+					pgConn.conn.Close()
+					return nil, newPerDialConnectError("failed OAUTHBEARER auth", err)
+				}
+				continue
+			}
+
+			// Fall back to SCRAM authentication
 			err = pgConn.scramAuth(msg.AuthMechanisms)
 			if err != nil {
 				pgConn.conn.Close()
